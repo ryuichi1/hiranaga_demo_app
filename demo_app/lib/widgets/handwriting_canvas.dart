@@ -67,9 +67,6 @@ class HandwritingCanvasState extends State<HandwritingCanvas> {
       Paint()..color = Colors.white,
     );
 
-    // Calculate transformation (scaling + centering)
-    final transformation = _calculateTransformation(bounds);
-
     // Draw strokes with thicker lines for better recognition
     final paint = Paint()
       ..color = Colors.black
@@ -77,10 +74,28 @@ class HandwritingCanvasState extends State<HandwritingCanvas> {
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
-    // Apply transformation to canvas
-    canvas.save();
-    canvas.transform(transformation.storage);
+    // Calculate scale to fit the strokes in the center
+    const double targetSize = 180.0;
+    const double canvasSize = 300.0;
+    final strokeAreaSize = math.max(bounds.width, bounds.height);
+    final scale = targetSize / strokeAreaSize;
 
+    // Calculate translation to center the strokes
+    final scaledWidth = bounds.width * scale;
+    final scaledHeight = bounds.height * scale;
+    final offsetX = (canvasSize - scaledWidth) / 2;
+    final offsetY = (canvasSize - scaledHeight) / 2;
+
+    // Apply transformation
+    canvas.save();
+    // First translate to the target position
+    canvas.translate(offsetX, offsetY);
+    // Then scale
+    canvas.scale(scale, scale);
+    // Finally translate to compensate for the bounds offset
+    canvas.translate(-bounds.left, -bounds.top);
+
+    // Draw all strokes
     for (final stroke in _strokes) {
       if (stroke.length > 1) {
         final path = Path();
@@ -142,51 +157,17 @@ class HandwritingCanvasState extends State<HandwritingCanvas> {
       return null;
     }
 
+    // Add small padding to account for stroke width and improve bounds
+    const double padding = 6.0; // Half of stroke width (12.0 / 2)
+    
+    minX = math.max(0, minX - padding);
+    minY = math.max(0, minY - padding);
+    maxX = math.min(300, maxX + padding);
+    maxY = math.min(300, maxY + padding);
+
     return Rect.fromLTRB(minX, minY, maxX, maxY);
   }
 
-  Matrix4 _calculateTransformation(Rect bounds) {
-    const double canvasSize = 300.0;
-    const double minSize = 80.0; // Minimum size for very small characters
-    const double maxSize = 220.0; // Maximum size for very large characters
-
-    // Calculate current size
-    final currentWidth = bounds.width;
-    final currentHeight = bounds.height;
-    final currentSize = math.max(currentWidth, currentHeight);
-
-    // Calculate target size
-    double targetSize = currentSize;
-    
-    // Scale up very small characters
-    if (currentSize < minSize) {
-      targetSize = minSize;
-    }
-    // Scale down very large characters
-    else if (currentSize > maxSize) {
-      targetSize = maxSize;
-    }
-
-    // Calculate scale factor
-    final scale = currentSize > 0 ? targetSize / currentSize : 1.0;
-
-    // Calculate centering offset
-    const targetCenter = Offset(canvasSize / 2, canvasSize / 2);
-
-    // Create transformation matrix
-    final transformation = Matrix4.identity();
-    
-    // 1. Translate to origin
-    transformation.translate(-bounds.center.dx, -bounds.center.dy);
-    
-    // 2. Scale
-    transformation.scale(scale, scale);
-    
-    // 3. Translate to target position
-    transformation.translate(targetCenter.dx, targetCenter.dy);
-
-    return transformation;
-  }
 
 
   @override
